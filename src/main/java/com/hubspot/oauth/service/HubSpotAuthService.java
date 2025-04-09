@@ -2,7 +2,6 @@ package com.hubspot.oauth.service;
 
 import com.hubspot.oauth.converter.HubSpotConverter;
 import com.hubspot.oauth.dto.*;
-import com.hubspot.oauth.entity.HubSpotToken;
 import com.hubspot.oauth.repository.HubSpotTokenRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -19,7 +18,6 @@ import org.springframework.web.client.HttpClientErrorException;
 import org.springframework.web.client.RestTemplate;
 import org.springframework.web.util.UriComponentsBuilder;
 
-import java.time.LocalDateTime;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -63,7 +61,7 @@ public class HubSpotAuthService {
                 .fromUriString(authorizeUrl)
                 .queryParam("client_id", clientId)
                 .queryParam("redirect_uri", redirectUri)
-                .queryParam("scope", scopes)
+                .queryParam("scope", scopes.replace(", ", " "))
                 .toUriString();
         logger.info("Obtendo código de autorização: URL={}", url);
         return new AuthorizationUrlResponseDTO(url);
