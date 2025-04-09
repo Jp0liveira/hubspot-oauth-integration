@@ -1,7 +1,6 @@
 package com.hubspot.oauth.dto;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
-import lombok.Data;
 
 public class HubSpotContactResponseDTO {
     @JsonProperty("id")

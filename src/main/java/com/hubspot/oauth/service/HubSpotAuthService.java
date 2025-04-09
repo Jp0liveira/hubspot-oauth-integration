@@ -1,5 +1,6 @@
 package com.hubspot.oauth.service;
 
+import com.hubspot.oauth.converter.HubSpotConverter;
 import com.hubspot.oauth.dto.*;
 import com.hubspot.oauth.entity.HubSpotToken;
 import com.hubspot.oauth.repository.HubSpotTokenRepository;
@@ -8,6 +9,7 @@ import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpHeaders;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -82,15 +84,13 @@ public class HubSpotAuthService {
         HttpEntity<MultiValueMap<String, String>> request = new HttpEntity<>(params, headers);
 
         try {
-            HubSpotToken token = restTemplate.postForObject(tokenUrl, request, HubSpotToken.class);
+            HubSpotTokenDTO token = restTemplate.postForObject(tokenUrl, request, HubSpotTokenDTO.class);
             if (token == null) {
                 throw new RuntimeException("Resposta inválida do HubSpot");
             }
+            tokenRepository.save(HubSpotConverter.converter(token));
 
-            token.setIssuedAt(LocalDateTime.now());
-            tokenRepository.save(token);
-
-            return new OAuthCallbackResponseDTO(token.getAccessToken(), "Token obtido com sucesso");
+            return new OAuthCallbackResponseDTO(token.accessToken(), "Token obtido com sucesso");
         } catch (HttpClientErrorException e) {
             logger.error("Erro ao trocar código por token: Status={}, Response={}", e.getStatusCode(), e.getResponseBodyAsString());
             throw new RuntimeException("Erro ao trocar código por token: " + e.getStatusCode() + " - " + e.getResponseBodyAsString());
@@ -101,7 +101,8 @@ public class HubSpotAuthService {
     }
 
     public ContactResponseDTO createContact(ContactRequestDTO contactRequest) {
-        HubSpotToken token = tokenRepository.findTopByOrderByIssuedAtDesc()
+
+        HubSpotTokenDTO token = tokenRepository.findTopByOrderByIssuedAtDesc()
                 .orElseThrow(() -> new RuntimeException("Nenhum token de acesso encontrado. Autentique-se primeiro."));
 
         Map<String, Object> properties = new HashMap<>();
@@ -114,7 +115,7 @@ public class HubSpotAuthService {
 
         HttpHeaders headers = new HttpHeaders();
         headers.setContentType(MediaType.APPLICATION_JSON);
-        headers.setBearerAuth(token.getAccessToken());
+        headers.setBearerAuth(token.accessToken());
 
         HttpEntity<Map<String, Object>> request = new HttpEntity<>(body, headers);
 
@@ -126,10 +127,10 @@ public class HubSpotAuthService {
             }
              return new ContactResponseDTO("Contato criado com sucesso", response.getId());
         } catch (HttpClientErrorException e) {
-            if (e.getStatusCode().value() == 429) {
+            if (e.getStatusCode().value() == HttpStatus.TOO_MANY_REQUESTS.value()) {
                 logger.warn("Rate limit excedido ao criar contato: {}", e.getResponseBodyAsString());
                 throw new RuntimeException("Rate limit excedido. Tente novamente mais tarde.");
-            } else if (e.getStatusCode().value() == 401) {
+            } else if (e.getStatusCode().value() == HttpStatus.UNAUTHORIZED.value()) {
                 logger.error("Token expirado ou inválido: {}", e.getResponseBodyAsString());
                 throw new RuntimeException("Token de acesso expirado ou inválido. Autentique-se novamente.");
             }
