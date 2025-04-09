@@ -1,15 +1,15 @@
 package com.hubspot.oauth.controller;
 
 import com.hubspot.oauth.dto.AuthorizationUrlResponseDTO;
+import com.hubspot.oauth.dto.ContactRequestDTO;
+import com.hubspot.oauth.dto.ContactResponseDTO;
 import com.hubspot.oauth.dto.OAuthCallbackResponseDTO;
 import com.hubspot.oauth.service.HubSpotAuthService;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RequestParam;
-import org.springframework.web.bind.annotation.RestController;
+import org.springframework.validation.annotation.Validated;
+import org.springframework.web.bind.annotation.*;
 
 import java.net.URI;
 import java.net.URLEncoder;
@@ -47,6 +47,17 @@ public class HubSpotController {
         } catch (RuntimeException e) {
             return ResponseEntity.status(HttpStatus.BAD_REQUEST)
                     .body(new OAuthCallbackResponseDTO(null, "Erro: " + e.getMessage()));
+        }
+    }
+
+    @PostMapping("/contacts")
+    public ResponseEntity<ContactResponseDTO> createContact(@Validated @RequestBody ContactRequestDTO contactRequest) {
+        try {
+            ContactResponseDTO response = hubSpotAuthService.createContact(contactRequest);
+            return ResponseEntity.ok(response);
+        } catch (RuntimeException e) {
+            return ResponseEntity.status(400)
+                    .body(new ContactResponseDTO("Erro: " + e.getMessage(), null));
         }
     }
 
