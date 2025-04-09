@@ -1,40 +1,40 @@
 package com.hubspot.oauth.service;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.hubspot.oauth.converter.HubSpotConverter;
 import com.hubspot.oauth.dto.HubSpotWebhookEventDTO;
-import org.apache.commons.codec.digest.HmacAlgorithms;
-import org.apache.commons.codec.digest.HmacUtils;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-import org.springframework.beans.factory.annotation.Value;
+import com.hubspot.oauth.repository.HubSpotWebhookEventRepository;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.Arrays;
 import java.util.List;
 
 @Service
 public class HubSpotWebhookService {
-    private static final Logger logger = LoggerFactory.getLogger(HubSpotWebhookService.class);
 
-    @Value("${hubspot.client-secret}")
-    private String clientSecret;
+    private final HubSpotWebhookEventRepository hubSpotWebhookEventRepository;
 
-
-    public void processWebhookEvents(List<HubSpotWebhookEventDTO> events) {
-        for (HubSpotWebhookEventDTO event : events) {
-            if ("contact.creation".equals(event.getSubscriptionType())) {
-                logger.info("Novo contato criado no HubSpot: ID={}",  event.getObjectId());
-            } else {
-                logger.debug("Evento ignorado: Tipo={}", event.getSubscriptionType());
-            }
-        }
+    public HubSpotWebhookService(HubSpotWebhookEventRepository hubSpotWebhookEventRepository) {
+        this.hubSpotWebhookEventRepository = hubSpotWebhookEventRepository;
     }
 
-    public boolean validateSignature(String signature, String requestBody) {
-        if (signature == null || requestBody == null) {
-            return false;
-        }
-        String calculatedSignature = new HmacUtils(HmacAlgorithms.HMAC_SHA_256, clientSecret).hmacHex(requestBody);
-        return signature.equals(calculatedSignature);
+    @Transactional
+    public void processWebhookEvents(String requestBody) throws JsonProcessingException {
+
+        ObjectMapper mapper = new ObjectMapper();
+        List<HubSpotWebhookEventDTO> events = Arrays.asList(
+                mapper.readValue(requestBody, HubSpotWebhookEventDTO[].class)
+        );
+
+        events.stream()
+                .filter(event -> "contact.creation".equalsIgnoreCase(event.getSubscriptionType()))
+                .forEach(this::saveEvent);
+    }
+
+    public void saveEvent(HubSpotWebhookEventDTO hubSpotWebhookEventDTO) {
+        hubSpotWebhookEventRepository.save(HubSpotConverter.converter(hubSpotWebhookEventDTO));
     }
 
 }
